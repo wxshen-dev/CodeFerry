@@ -1,12 +1,8 @@
-# Source: WeChat public account @xiaolincoding
-# Backend interview site: xiaolincoding.com
-# Agent site: xiaolinnote.com
-# Resume templates: jianli.xiaolinnote.com
-
 """Tests for the hook system, covering events, conditions, executors, engine, loader, and agent integration."""
 from __future__ import annotations
 
 import asyncio
+import sys
 from typing import Any, AsyncIterator
 from unittest.mock import patch
 
@@ -253,7 +249,11 @@ class TestCommandExecutor:
     async def test_timeout(self):
         from codeferry.hooks.executors import execute_command
 
-        action = Action(type="command", command="sleep 10", timeout=1)
+        action = Action(
+            type="command",
+            command=f'"{sys.executable}" -c "import time; time.sleep(10)"',
+            timeout=1,
+        )
         ctx = HookContext()
         result = await execute_command(action, ctx)
         assert result.success is False
@@ -487,18 +487,23 @@ class TestHookEngine:
         engine = HookEngine([h])
         ctx = HookContext(event_name="post_tool_use")
         await engine.run_hooks("post_tool_use", ctx)
+        await engine.shutdown()
 
     @pytest.mark.asyncio
     async def test_async_hook_does_not_block(self):
         h = self._make_hook(
             id="slow",
             event="post_tool_use",
-            action=Action(type="command", command="sleep 5"),
+            action=Action(
+                type="command",
+                command=f'"{sys.executable}" -c "import time; time.sleep(5)"',
+            ),
             async_exec=True,
         )
         engine = HookEngine([h])
         ctx = HookContext(event_name="post_tool_use")
         await engine.run_hooks("post_tool_use", ctx)
+        await engine.shutdown()
 
 # ---------------------------------------------------------------------------
 # Agent loop integration

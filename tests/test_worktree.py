@@ -19,6 +19,19 @@ from codeferry.worktree.models import WorktreeSession
 from codeferry.worktree.session import load_worktree_session, save_worktree_session
 from codeferry.worktree.slug import flatten_slug, validate_slug
 
+
+@pytest.fixture(autouse=True)
+def _main_event_loop():
+    """Give legacy synchronous async tests their own loop on Python 3.13+."""
+    loop = asyncio.new_event_loop()
+    asyncio.set_event_loop(loop)
+    try:
+        yield
+    finally:
+        loop.close()
+        asyncio.set_event_loop(None)
+
+
 # =========================================================================
 # A. Slug validation
 # =========================================================================

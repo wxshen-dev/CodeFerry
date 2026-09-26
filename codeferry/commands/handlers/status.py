@@ -2,14 +2,12 @@ from __future__ import annotations
 
 import os
 
+from codeferry import __version__
 from codeferry.commands.registry import Command, CommandContext, CommandType
 
 
-VERSION = "v0.9.0"
-
-
 async def handle_status(ctx: CommandContext) -> None:
-    lines = ["codeferry Status", "─────────────"]
+    lines = ["codeferry status", "─────────────"]
 
     mode = ctx.agent.permission_mode.value if ctx.agent else "unknown"
     lines.append(f"Mode: {mode}")
@@ -38,7 +36,7 @@ async def handle_status(ctx: CommandContext) -> None:
 
     work_dir = ctx.agent.work_dir if ctx.agent else os.getcwd()
     lines.append(f"Working directory: {work_dir}")
-    lines.append(f"Version: {VERSION}")
+    lines.append(f"Version: v{__version__}")
 
     ctx.ui.add_system_message("\n".join(lines))
 

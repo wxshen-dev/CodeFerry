@@ -2,6 +2,7 @@ from __future__ import annotations
 
 from codeferry.commands.registry import Command, CommandContext, CommandType
 from codeferry.conversation import ConversationManager
+from codeferry.memory.session import build_time_gap_message
 
 
 async def handle_session(ctx: CommandContext) -> None:
@@ -70,6 +71,9 @@ async def handle_session(ctx: CommandContext) -> None:
         conv = ConversationManager()
         for msg in result.messages:
             conv.history.append(msg)
+        gap_message = build_time_gap_message(result.last_active)
+        if gap_message is not None:
+            conv.history.append(gap_message)
         ctx.config["set_conversation"](conv)
         if ctx.agent:
             ctx.agent._loop_count = 0

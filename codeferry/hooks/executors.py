@@ -2,6 +2,9 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
+import signal
+import subprocess
 from urllib.request import Request, urlopen
 from urllib.error import URLError
 
@@ -10,25 +13,47 @@ from codeferry.hooks.models import Action, ActionResult, HookContext
 log = logging.getLogger(__name__)
 
 
+async def _terminate_process_tree(proc: asyncio.subprocess.Process) -> None:
+    if proc.returncode is not None:
+        return
+    if os.name == "nt":
+        proc.send_signal(signal.CTRL_BREAK_EVENT)
+    else:
+        proc.kill()
+    # Drain the redirected pipe as well as waiting for process exit. On Windows,
+    # waiting alone can leave the Proactor pipe transport open after taskkill,
+    # which prevents the event loop (and therefore pytest/application shutdown)
+    # from finishing.
+    await proc.communicate()
+
+
 async def execute_command(action: Action, ctx: HookContext) -> ActionResult:
     command = ctx.expand(action.command)
     try:
+        process_kwargs = {}
+        if os.name == "nt":
+            # Give the shell and all descendants their own console process group,
+            # allowing timeout/cancellation to stop the entire tree with Ctrl+Break.
+            process_kwargs["creationflags"] = subprocess.CREATE_NEW_PROCESS_GROUP
         proc = await asyncio.create_subprocess_shell(
             command,
             stdout=asyncio.subprocess.PIPE,
             stderr=asyncio.subprocess.STDOUT,
+            **process_kwargs,
         )
         try:
             stdout, _ = await asyncio.wait_for(
                 proc.communicate(), timeout=action.timeout
             )
         except asyncio.TimeoutError:
-            proc.kill()
-            await proc.wait()
+            await _terminate_process_tree(proc)
             return ActionResult(
                 output=f"Command timed out after {action.timeout}s: {command}",
                 success=False,
             )
+        except asyncio.CancelledError:
+            await _terminate_process_tree(proc)
+            raise
         output = stdout.decode(errors="replace").strip() if stdout else ""
         return ActionResult(output=output, success=proc.returncode == 0)
     except Exception as e:

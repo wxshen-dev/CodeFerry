@@ -14,6 +14,7 @@ from textual.message import Message as TMessage
 from textual.widgets import Markdown, OptionList, Static, TextArea
 from textual.widgets.option_list import Option
 
+from codeferry import __version__
 from codeferry.agent import (
     Agent,
     CompactNotification,
@@ -632,11 +633,11 @@ class codeferryApp(App):
     @staticmethod
     def _make_banner(model: str = "", work_dir: str = "") -> RichText:
         t = RichText()
-        t.append(" /\\_/\\    ", style="bold color(99)")
-        t.append("codeferry v0.1.0\n", style="color(242)")
-        t.append("( o.o )   ", style="bold color(99)")
+        t.append("    __|__    ", style="bold color(99)")
+        t.append(f"codeferry v{__version__}\n", style="color(242)")
+        t.append(" __|_____|__ ", style="bold color(99)")
         t.append(f"{model}\n" if model else "\n", style="color(242)")
-        t.append(" > ^ <    ", style="bold color(99)")
+        t.append(" \\_________/ ", style="bold color(99)")
         t.append(work_dir, style="color(242)")
         return t
 
@@ -1834,16 +1835,20 @@ class codeferryApp(App):
         async def _cleanup() -> None:
             tasks: list[asyncio.Task] = []
 
+            async def _shutdown_hooks() -> None:
+                if self.hook_engine is None:
+                    return
+                await self.hook_engine.run_hooks(
+                    "shutdown", HookContext(event_name="shutdown")
+                )
+                await self.hook_engine.shutdown()
+
             if self.agent and self.agent.memory_manager:
                 tasks.append(asyncio.create_task(
                     self.agent._extract_memories(self.conversation)
                 ))
             if self.hook_engine:
-                tasks.append(asyncio.create_task(
-                    self.hook_engine.run_hooks(
-                        "shutdown", HookContext(event_name="shutdown")
-                    )
-                ))
+                tasks.append(asyncio.create_task(_shutdown_hooks()))
             tasks.append(asyncio.create_task(self._shutdown_mcp()))
 
             if tasks:

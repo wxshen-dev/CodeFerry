@@ -22,7 +22,7 @@ Categories:
 - **References**: external links and documentation URLs
 
 Rules:
-1. Do not add duplicate entries with the same meaning as existing entries.
+1. Do not add duplicates or entries with the same meaning as existing entries.
 2. If a category has nothing worth remembering, leave it empty. Do not write any
    entries or placeholders.
 3. Each memory must be a concrete item on its own line starting with `- `. Do not
@@ -248,6 +248,6 @@ class MemoryManager:
                 parts.append(f"[Project-level] {self._project_path}\n{content}")
 
         if not parts:
-            return "There are currently no automatic memories."
+            return "No automatic memories are currently available."
 
         return "\n\n".join(parts)

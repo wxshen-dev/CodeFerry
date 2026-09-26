@@ -8,6 +8,7 @@ import time
 from datetime import datetime
 from pathlib import Path
 
+from codeferry.cache import FileCache
 from codeferry.worktree.changes import (
     CleanupResult,
     Changes,
@@ -32,10 +33,12 @@ class WorktreeManager:
     def __init__(
         self,
         repo_root: str,
+        file_cache: FileCache | None = None,
         symlink_directories: list[str] | None = None,
         worktree_dir: str | None = None,
     ) -> None:
         self.repo_root = repo_root
+        self.file_cache = file_cache or FileCache()
         self.symlink_directories = symlink_directories or []
         self.worktree_dir = worktree_dir or str(
             Path(repo_root) / ".codeferry" / "worktrees"
@@ -186,6 +189,7 @@ class WorktreeManager:
             original_head_commit=original_head,
         )
         self.current_session = session
+        self.file_cache.clear()
         save_worktree_session(self._codeferry_dir, session)
         return session
 

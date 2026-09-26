@@ -1,8 +1,3 @@
-# Source: WeChat public account @xiaolincoding
-# Backend interview site: xiaolincoding.com
-# Agent site: xiaolinnote.com
-# Resume templates: jianli.xiaolinnote.com
-
 """Integration tests for the agent loop, validating checklist items programmatically."""
 from __future__ import annotations
 
@@ -123,19 +118,20 @@ async def test_single_step_tool_call():
     assert c["loop"][0].total_turns == 2
 
 @pytest.mark.asyncio
-async def test_multi_step_autonomous():
+async def test_multi_step_autonomous(tmp_path):
     """The agent writes a file, reads it back, and then stops in an end-to-end flow."""
+    test_file = tmp_path / "codeferry_test_hello.txt"
     client = MockLLMClient([
         # Turn 1: WriteFile.
         [
             TextDelta("Creating file."),
-            ToolCallComplete("t1", "WriteFile", {"file_path": "/tmp/codeferry_test_hello.txt", "content": "Hello World"}),
+            ToolCallComplete("t1", "WriteFile", {"file_path": str(test_file), "content": "Hello World"}),
             StreamEnd("end_turn", input_tokens=10, output_tokens=20),
         ],
         # Turn 2: ReadFile for verification.
         [
             TextDelta("Verifying content."),
-            ToolCallComplete("t2", "ReadFile", {"file_path": "/tmp/codeferry_test_hello.txt"}),
+            ToolCallComplete("t2", "ReadFile", {"file_path": str(test_file)}),
             StreamEnd("end_turn", input_tokens=40, output_tokens=25),
         ],
         # Turn 3: final answer.
@@ -145,7 +141,7 @@ async def test_multi_step_autonomous():
         ],
     ])
     registry = create_default_registry()
-    agent = Agent(client, registry, "anthropic", work_dir="/tmp")
+    agent = Agent(client, registry, "anthropic", work_dir=str(tmp_path))
     conv = ConversationManager()
     conv.add_user_message("Create hello.txt with Hello World, then verify")
 
@@ -315,12 +311,13 @@ async def test_message_splicing():
 
     # Inspect conversation history.
     msgs = build_anthropic_messages(conv.get_messages())
-    # env_context(user) + user_message + assistant(text+2 tool_use blocks) + user(2 tool_result blocks) + assistant(final response)
-    assert len(msgs) == 5
-    assistant_msg = msgs[2]
+    # Serialization merges consecutive plain-text user messages, so the injected
+    # environment context and the original user message form one API message.
+    assert len(msgs) == 4
+    assistant_msg = msgs[1]
     assert assistant_msg["role"] == "assistant"
     assert len(assistant_msg["content"]) == 3  # text + 2 tool_use blocks
-    tool_results_msg = msgs[3]
+    tool_results_msg = msgs[2]
     assert tool_results_msg["role"] == "user"
     assert len(tool_results_msg["content"]) == 2  # 2 tool_result blocks
     assert tool_results_msg["content"][0]["tool_use_id"] == "t1"

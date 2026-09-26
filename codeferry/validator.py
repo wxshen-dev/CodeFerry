@@ -116,13 +116,24 @@ def validate_permission_mode(mode: str) -> str:
     return mode
 
 
-def validate_mcp_servers(raw_mcp: list | None) -> list[dict]:
-    """Validate the mcp_servers section and return sanitized server config dictionaries."""
+def validate_mcp_servers(raw_mcp: list | dict | None) -> list[dict]:
+    """Validate MCP servers in list form or the legacy name-keyed mapping form."""
     if raw_mcp is None:
         return []
 
-    if not isinstance(raw_mcp, list):
-        raise ConfigError("'mcp_servers' must be a list of server configs")
+    if isinstance(raw_mcp, dict):
+        normalized: list[dict] = []
+        for name, entry in raw_mcp.items():
+            if not isinstance(entry, dict):
+                raise ConfigError(f"MCP server '{name}': must be a mapping")
+            item = dict(entry)
+            item.setdefault("name", name)
+            normalized.append(item)
+        raw_mcp = normalized
+    elif not isinstance(raw_mcp, list):
+        raise ConfigError(
+            "'mcp_servers' must be a list or a name-keyed mapping of server configs"
+        )
 
     servers: list[dict] = []
     for i, entry in enumerate(raw_mcp):

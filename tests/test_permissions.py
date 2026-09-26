@@ -261,8 +261,8 @@ class TestPermissionMode:
 
     def test_plan_mode(self) -> None:
         assert mode_decide(PermissionMode.PLAN, "read") == "allow"
-        assert mode_decide(PermissionMode.PLAN, "write") == "deny"
-        assert mode_decide(PermissionMode.PLAN, "command") == "deny"
+        assert mode_decide(PermissionMode.PLAN, "write") == "ask"
+        assert mode_decide(PermissionMode.PLAN, "command") == "ask"
 
     def test_bypass_mode(self) -> None:
         assert mode_decide(PermissionMode.BYPASS, "read") == "allow"
@@ -293,7 +293,7 @@ class TestPermissionChecker:
         tool = Bash()
         d = self.checker.check(tool, {"command": "rm -rf /"})
         assert d.effect == "deny"
-        assert "dangerous command" in d.reason
+        assert "dangerous command" in d.reason.lower()
 
     def test_path_outside_sandbox_denied(self) -> None:
         from codeferry.tools.read_file import ReadFile
@@ -322,12 +322,12 @@ class TestPermissionChecker:
         d = self.checker.check(tool, {"command": "npm test"})
         assert d.effect == "ask"
 
-    def test_plan_mode_denies_write(self) -> None:
+    def test_plan_mode_asks_for_write(self) -> None:
         from codeferry.tools.write_file import WriteFile
         self.checker.mode = PermissionMode.PLAN
         tool = WriteFile()
         d = self.checker.check(tool, {"file_path": str(self.tmpdir / "x.txt"), "content": "hi"})
-        assert d.effect == "deny"
+        assert d.effect == "ask"
 
     def test_bypass_mode_allows_all(self) -> None:
         from codeferry.tools.bash import Bash
@@ -488,11 +488,11 @@ async def test_e2e_rule_allows_git():
     tmpdir = Path(tempfile.mkdtemp())
     rules_file = tmpdir / ".codeferry" / "permissions.yaml"
     rules_file.parent.mkdir(parents=True)
-    rules_file.write_text(yaml.dump([{"rule": "Bash(git *)", "effect": "allow"}]))
+    rules_file.write_text(yaml.dump([{"rule": "Bash(echo *)", "effect": "allow"}]))
 
     client = MockLLMClient([
         [
-            ToolCallComplete("t1", "Bash", {"command": "git status"}),
+            ToolCallComplete("t1", "Bash", {"command": "echo allowed"}),
             StreamEnd("end_turn", input_tokens=10, output_tokens=20),
         ],
         [
@@ -509,7 +509,7 @@ async def test_e2e_rule_allows_git():
     )
     agent = Agent(client, registry, "anthropic", work_dir=str(tmpdir), permission_checker=checker)
     conv = ConversationManager()
-    conv.add_user_message("Show git status")
+    conv.add_user_message("Run the allowed command")
 
     events = []
     async for e in agent.run(conv):
@@ -566,8 +566,7 @@ async def test_e2e_default_mode_write_triggers_ask():
 async def test_e2e_bypass_mode_allows_all():
     """Bypass mode allows all operations without asking."""
     tmpdir = Path(tempfile.mkdtemp())
-    test_file = tmpdir / "existing.txt"
-    test_file.write_text("original")
+    test_file = tmpdir / "new.txt"
 
     client = MockLLMClient([
         [

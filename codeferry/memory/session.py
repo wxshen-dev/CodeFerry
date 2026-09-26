@@ -14,6 +14,7 @@ from codeferry.conversation import ConversationManager, Message, ToolResultBlock
 SESSIONS_DIR = ".codeferry/sessions"
 DEFAULT_MAX_AGE_DAYS = 30
 TITLE_MAX_LENGTH = 50
+TIME_GAP_WARNING_THRESHOLD = timedelta(hours=24)
 
 SESSION_SUMMARY_PROMPT = (
     "You are a conversation summarization assistant. Based on the conversation below, "
@@ -415,6 +416,37 @@ class ResumeResult:
     session: Session
     messages: list[Message]
     last_active: datetime
+
+
+def build_time_gap_message(
+    last_active: datetime,
+    now: datetime | None = None,
+) -> Message | None:
+    """Return a reminder when a resumed session has been idle for at least a day."""
+    current = now or datetime.now(timezone.utc)
+    if current.tzinfo is None:
+        current = current.replace(tzinfo=timezone.utc)
+    if last_active.tzinfo is None:
+        last_active = last_active.replace(tzinfo=timezone.utc)
+
+    gap = current - last_active
+    if gap < TIME_GAP_WARNING_THRESHOLD:
+        return None
+
+    total_hours = max(0, int(gap.total_seconds() // 3600))
+    if total_hours >= 48:
+        elapsed = f"{total_hours // 24} days"
+    else:
+        elapsed = f"{total_hours} hours"
+    return Message(
+        role="user",
+        content=(
+            "<system-reminder>\n"
+            f"This session was last active {elapsed} ago. The code may have changed "
+            "since then; verify relevant files and runtime state before continuing.\n"
+            "</system-reminder>"
+        ),
+    )
 
 
 # ---------------------------------------------------------------------------
